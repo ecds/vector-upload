@@ -1,0 +1,17 @@
+.Dropzone {
+  border-radius: 1rem;
+  border-style: dashed;
+}
+
+.Dropzone svg {
+  color: #263238;
+  font-size: 5rem;
+}
+
+.Dropzone button {
+  font-size: 1.5rem;
+}
+
+.Highlight {
+  background-color: #76FF03;
+}

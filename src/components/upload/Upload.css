@@ -1,0 +1,10 @@
+.Overlay {
+  background-color: rgb(0 0 0 / 52%);
+  color: white;
+  font-size: 10rem;
+  height: 100vh;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  z-index: 10;
+}
