@@ -1,10 +1,15 @@
 import React, { Component } from 'react';
+import { Editor } from 'react-draft-wysiwyg';
+import { EditorState, convertToRaw } from 'draft-js';
+import draftToHtml from 'draftjs-to-html';
+import htmlToDraft from 'html-to-draftjs';
 import Dropzone from '../dropzone/Dropzone';
 import Progress from '../progress/Progress';
 import Preview from '../preview/Preview';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner, faTemperatureHigh } from '@fortawesome/free-solid-svg-icons';
 import { Alert } from 'uikit-react';
+import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 import './Upload.css';
 
 class Upload extends Component {
@@ -12,11 +17,13 @@ class Upload extends Component {
     super(props);
     this.state = {
       file: null,
-      layerName: '',
+      layerTitle: '',
+      layerDescription: '',
+      editorState: EditorState.createEmpty(),
       uploading: false,
       uploadProgress: {},
       successfulUploaded: false,
-      standardAttributes: ['title', 'description', 'images', 'video', 'break'],
+      standardAttributes: ['title', 'description', 'images', 'video', 'break', 'longitude', 'latitude'],
       mappedAttributes: {
         title: null,
         images: null,
@@ -30,23 +37,51 @@ class Upload extends Component {
     };
 
     this.onFilesAdded = this.onFilesAdded.bind(this);
+    this.fetchFromUrl = this.fetchFromUrl.bind(this);
     this.uploadFileToParse = this.uploadFileToParse.bind(this);
     this.sendMappedAttributes = this.sendMappedAttributes.bind(this);
     this.uploadFinal = this.uploadFinal.bind(this);
     this.renderActions = this.renderActions.bind(this);
+    this.renderPreview = this.renderPreview.bind(this);
     this.onAttributeSelected = this.onAttributeSelected.bind(this);
     this.clearAlert = this.clearAlert.bind(this);
-    this.updateLayerName = this.updateLayerName.bind(this);
+    this.updateLayerTitle = this.updateLayerTitle.bind(this);
+    this.updateDescription = this.updateDescription.bind(this);
 
     this.attributeSelectRef = React.createRef();
   }
 
   async onFilesAdded(file) {
-    await this.setState(prevState => ({
+    await this.setState({
       uploading: true,
       file
-    }));
+    });
     this.uploadFileToParse();
+  }
+
+  async fetchFromUrl(url) {
+    await this.setState(prevState => ({
+      uploading: true,
+      url
+    }));
+
+    try {
+      let response = await fetch(
+        url,
+        {
+          method: 'GET'
+        }
+      );
+      if (response.ok) {
+        let data = await response.json();
+        console.log("Upload -> fetchFromUrl -> data", data)
+        const file = new Blob([JSON.stringify(data)]);
+        this.setState({ file });
+        await this.uploadFileToParse();
+      }
+    } catch(error) {
+      console.log(error);
+    }
   }
 
   // TODO: Does this need to be async?
@@ -57,7 +92,7 @@ class Upload extends Component {
 
     try {
       let response = await fetch(
-        'https://api.atlmaps-dev.com:3000/uploads/vector/parse',
+        `${process.env.REACT_APP_API_HOST}/uploads/vector/parse`,
         {
           method: 'POST',
           body: formData,
@@ -87,6 +122,7 @@ class Upload extends Component {
   }
 
   async sendMappedAttributes() {
+    this.clearAlert();
     this.setState({
       uploadProgress: {},
       uploading: true,
@@ -98,7 +134,7 @@ class Upload extends Component {
 
     try {
       let response = await fetch(
-        'https://api.atlmaps-dev.com:3000/uploads/vector/preview',
+        `${process.env.REACT_APP_API_HOST}/uploads/vector/preview`,
         {
           method: 'POST',
           body: formData
@@ -110,7 +146,7 @@ class Upload extends Component {
           geojson: data
         });
       } else {
-        let error= await response.json();
+        let error = await response.json();
         this.setState({
           error: error.message
         });
@@ -126,16 +162,18 @@ class Upload extends Component {
   }
 
   async uploadFinal() {
+    console.log('uploading')
     this.setState({ uploading: true });
     const formData = new FormData();
     const tmp_file = new Blob([JSON.stringify(this.state.geojson)], { type: 'application/json'}, `${Date.now()}.json`);
     formData.append('file', tmp_file);
-    formData.append('name', this.state.layerName);
+    formData.append('title', this.state.layerTitle);
+    formData.append('description', this.state.layerDescription);
     formData.append('geojson', JSON.stringify(this.state.geojson));
 
     try {
       let response = await fetch (
-        'https://api.atlmaps-dev.com:3000/uploads/vector/new',
+        `${process.env.REACT_APP_API_HOST}/uploads/vector/new`,
         {
           method: 'POST',
           body: formData
@@ -150,13 +188,11 @@ class Upload extends Component {
             video: null,
             description: null
           },
-          layerName: null,
+          layerTitle: null,
           incomingAttributes: null,
           success: 'SUCCESS! The layer has been added. 🚀'
         });
       } else {
-    console.log('error', response)
-
         // let error= await response.json();
         // this.setState({
         //   error: error.message
@@ -185,10 +221,18 @@ class Upload extends Component {
     });
   }
 
-  updateLayerName(event) {
+  updateLayerTitle(event) {
+    console.log("Upload -> updateLayerTitle -> event", event)
     this.setState({
-      layerName: event.target.value
+      layerTitle: event.target.value
     });
+  }
+
+  updateDescription(editorState) {
+    this.setState({
+      layerDescription: draftToHtml(convertToRaw(editorState.getCurrentContent())),
+      editorState
+    })
   }
 
   render() {
@@ -203,7 +247,7 @@ class Upload extends Component {
           </div>
           <div className="Preview">
             {this.renderPreview()}
-            <div class="uk-margin">
+            <div className="uk-margin">
               {this.renderSaveButton()}
             </div>
           </div>
@@ -215,11 +259,15 @@ class Upload extends Component {
   renderAlert() {
     if (this.state.error) {
       return (
-        <Alert content={this.state.error} isClosable color="danger" onHide={this.clearAlert} />
+        <div>
+          <Alert content={this.state.error} isClosable color="danger" onHide={this.clearAlert} />
+        </div>
       )
     } else if (this.state.success) {
       return (
-        <Alert content={this.state.success} color="success" onHide={this.clearAlert} duration={3000} />
+        <div>
+          <Alert content={this.state.success} color="success" onHide={this.clearAlert} duration={3000} />
+        </div>
       )
     }
   }
@@ -229,6 +277,7 @@ class Upload extends Component {
       return (
         <Dropzone
           onFilesAdded={this.onFilesAdded}
+          fetchFromUrl={this.fetchFromUrl}
           disabled={this.state.uploading || this.state.successfulUpload}
         />
       )
@@ -280,9 +329,7 @@ class Upload extends Component {
   }
 
   renderIncomingAttributes() {
-    if (this.state.incomingAttributes == null) {
-      return (<span></span>)
-    } else {
+    if (this.state.incomingAttributes) {
       return (
         <form className="uk-form-stacked uk-text-large uk-text-capitalize">
           {this.state.standardAttributes.map((attr, index) => {
@@ -323,25 +370,40 @@ class Upload extends Component {
           </div>
         </form>
       )
+    } else {
+      return (<span></span>)
     }
   }
 
   renderPreview() {
+    const { editorState } = this.state;
     if (this.state.geojson) {
       return (
         <div>
           <div className="uk-margin">
             <label htmlFor='layer-name' className="uk-form-label uk-text-large">
-              Layer Name
+              Layer Title
             </label>
             <div className="uk-form-controls">
               <input
                 type="text"
                 id="layer-name"
                 className="uk-input"
-                value={this.state.layerName}
+                value={this.state.layerTitle}
                 placeholder="Enter a name for the layer to save."
-                onChange={this.updateLayerName}
+                onChange={this.updateLayerTitle}
+              />
+            </div>
+          </div>
+          <div className="uk-margin">
+            <label className="uk-form-label uk-text-large">
+              Layer Description
+            </label>
+            <div className="uk-form-controls">
+              <Editor
+                editorState={editorState}
+                onEditorStateChange={this.updateDescription}
+                editorClassName="editor"
               />
             </div>
           </div>
@@ -352,7 +414,7 @@ class Upload extends Component {
   }
 
   renderSaveButton() {
-    if (this.state.layerName) {
+    if (this.state.layerTitle) {
       return (
         <div className="uk-margin">
           <button

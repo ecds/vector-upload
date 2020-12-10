@@ -71,7 +71,7 @@ class Preview extends Component {
       return (
         <Choropleth
           data={this.props.data}
-          valueProperty={`org_${this.props.data.breakProperty}`}
+          valueProperty={feature => feature.properties[this.props.data.breakProperty]}
           steps={5}
           scale={['white', 'red']}
           mode="q"

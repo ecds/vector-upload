@@ -6,13 +6,15 @@ import './Dropzone.css';
 class Dropzone extends Component {
   constructor(props) {
     super(props);
-    this.state = { hightlight: false };
+    this.state = { hightlight: false, url: null };
     this.fileInputRef = React.createRef();
     this.openFileDialog = this.openFileDialog.bind(this);
     this.onFilesAdded = this.onFilesAdded.bind(this);
     this.onDragOver = this.onDragOver.bind(this);
     this.onDragLeave = this.onDragLeave.bind(this);
     this.onDrop = this.onDrop.bind(this);
+    this.onUrlSubmit = this.onUrlSubmit.bind(this);
+    this.updateUrl = this.updateUrl.bind(this);
   }
 
   openFileDialog() {
@@ -21,7 +23,6 @@ class Dropzone extends Component {
   }
 
   onFilesAdded(event) {
-    console.log("Dropzone -> onFilesAdded -> event", event)
     if (this.props.disabled) return;
     const file = event.target.files[0];
     if (this.props.onFilesAdded) {
@@ -53,6 +54,15 @@ class Dropzone extends Component {
     this.setState({ hightlight: false });
   }
 
+  onUrlSubmit(event) {
+    this.props.fetchFromUrl(this.state.url);
+    event.preventDefault();
+  }
+
+  updateUrl(event) {
+    this.setState({ url: event.target.value });
+  }
+
   fileListToArray(list) {
     const array = [];
     for (var i = 0; i < list.length; i++) {
@@ -75,7 +85,7 @@ class Dropzone extends Component {
             <FontAwesomeIcon icon={faFileImport} />
           </p>
           <p>
-            Drag and drop a <em>*.zip</em>, <em>*.json</em>, or <em>*.geojson</em> file here!
+            Drag and drop a <em>*.zip</em>, <em>*.xlsx</em>, <em>*.json</em>, or <em>*.geojson</em> file here!
           </p>
           <p>
             or
@@ -87,14 +97,26 @@ class Dropzone extends Component {
           >
             Choose File
           </button>
+          {/* <button className="uk-button-secondary uk-button-large" onClick={this.onDrop}>Upload File</button> */}
           </p>
+          <p>
+            or
+          </p>
+          <form onSubmit={this.onUrlSubmit}>
+            <p>
+              <input type="url" placeholder="Add URL" className="uk-input uk-text-center" onChange={this.updateUrl} />
+            </p>
+            <p>
+              <button className="uk-button uk-button-secondary" type="submit">Fetch GeoJSON</button>
+            </p>
+          </form>
         </div>
 
         <input
           ref={this.fileInputRef}
           className="FileInput"
           type="file"
-          accept=".zip,.json,.geojson,application/json"
+          accept=".zip,.json,.geojson,application/json,.xlsx,.csv"
           onChange={this.onFilesAdded}
           style={{display: 'none'}}
         />
