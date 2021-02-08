@@ -20,6 +20,7 @@
     "react-leaflet": "^2.7.0",
     "react-leaflet-choropleth": "^2.0.1",
     "react-scripts": "3.4.3",
+    "uikit": "^3.6.13",
     "uikit-react": "^3.0.20"
   },
   "scripts": {

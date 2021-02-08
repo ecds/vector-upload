@@ -6,6 +6,7 @@ import htmlToDraft from 'html-to-draftjs';
 import Dropzone from '../dropzone/Dropzone';
 import Progress from '../progress/Progress';
 import Preview from '../preview/Preview';
+import Sort from '../sort/Sort';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner, faTemperatureHigh } from '@fortawesome/free-solid-svg-icons';
 import { Alert } from 'uikit-react';
@@ -28,7 +29,8 @@ class Upload extends Component {
         title: null,
         images: null,
         video: null,
-        description: null
+        description: null,
+        dataAttributes: []
       },
       incomingAttributes: null,
       geojson: null,
@@ -47,6 +49,7 @@ class Upload extends Component {
     this.clearAlert = this.clearAlert.bind(this);
     this.updateLayerTitle = this.updateLayerTitle.bind(this);
     this.updateDescription = this.updateDescription.bind(this);
+    this.addDataAttribute = this.addDataAttribute.bind(this);
 
     this.attributeSelectRef = React.createRef();
   }
@@ -162,7 +165,6 @@ class Upload extends Component {
   }
 
   async uploadFinal() {
-    console.log('uploading')
     this.setState({ uploading: true });
     const formData = new FormData();
     const tmp_file = new Blob([JSON.stringify(this.state.geojson)], { type: 'application/json'}, `${Date.now()}.json`);
@@ -188,7 +190,8 @@ class Upload extends Component {
             video: null,
             description: null
           },
-          layerTitle: null,
+          layerTitle: '',
+          layerDescription: '',
           incomingAttributes: null,
           success: 'SUCCESS! The layer has been added. 🚀'
         });
@@ -233,6 +236,15 @@ class Upload extends Component {
       layerDescription: draftToHtml(convertToRaw(editorState.getCurrentContent())),
       editorState
     })
+  }
+
+  addDataAttribute(event) {
+    const elements = [...event.target.children];
+    console.log("🚀 ~ file: Upload.js ~ line 246 ~ Upload ~ addDataAttribute ~ elements.flatMap(item => [item.innText]", elements.flatMap(item => [item.innerText]))
+    let mappedAttributes = {...this.state.mappedAttributes};
+    mappedAttributes.dataAttributes = null
+    mappedAttributes.dataAttributes = elements.flatMap(item => [item.innerText]);
+    this.setState({ mappedAttributes });
   }
 
   render() {
@@ -298,7 +310,7 @@ class Upload extends Component {
   renderOverlay() {
     if (this.state.uploading) {
       return (
-        <div className="uk-position-absolute uk-text-center Overlay">
+        <div className="uk-position-fixed uk-text-center Overlay">
           <FontAwesomeIcon icon={faSpinner} spin />
         </div>
       )
@@ -331,44 +343,61 @@ class Upload extends Component {
   renderIncomingAttributes() {
     if (this.state.incomingAttributes) {
       return (
-        <form className="uk-form-stacked uk-text-large uk-text-capitalize">
-          {this.state.standardAttributes.map((attr, index) => {
-            return (
-              <div className="uk-margin" key={`stdAttr-${index}`}>
-                <label htmlFor={`attr-${index}`} className="uk-form-label uk-text-large">
-                  {attr}
-                </label>
-                <div className="uk-form-controls">
-                  <select
-                    ref={this.attributeSelectRef}
-                    id={`attr-${index}`}
-                    name={attr}
-                    className="uk-select"
-                    onChange={this.onAttributeSelected}
-                  >
-                    <option value="">--Select Corresponding Attribute--</option>
-                    {this.state.incomingAttributes.map((inAttr, index) => {
-                      return (
-                        <option value={inAttr} key={`inAttr-${index}`}>{inAttr}</option>
-                      )
-                    })}
-                  </select>
+        <div>
+          <form className="uk-form-stacked uk-text-large uk-text-capitalize">
+            {this.state.standardAttributes.map((attr, index) => {
+              return (
+                <div className="uk-margin" key={`stdAttr-${index}`}>
+                  <label htmlFor={`attr-${index}`} className="uk-form-label uk-text-large">
+                    {attr}
+                  </label>
+                  <div className="uk-form-controls">
+                    <select
+                      ref={this.attributeSelectRef}
+                      id={`attr-${index}`}
+                      name={attr}
+                      className="uk-select"
+                      onChange={this.onAttributeSelected}
+                    >
+                      <option value="">--Select Corresponding Attribute--</option>
+                      {this.state.incomingAttributes.map((inAttr, index) => {
+                        return (
+                          <option value={inAttr} key={`inAttr-${index}`}>{inAttr}</option>
+                        )
+                      })}
+                    </select>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-          <div className="uk-margin">
-            <div className="uk-form-control">
-              <button
-                className="uk-button uk-button-large uk-button-secondary"
-                type="button"
-                onClick={this.sendMappedAttributes}
-              >
-                Preview
-              </button>
-            </div>
+              )
+            })}
+
+          <h3>Drag and sort data properties for display.</h3>
+          <div className="add-data-property">
+            <Sort group="sort-group" onAdded={this.addDataAttribute} onRemoved={this.addDataAttribute} onMoved={this.addDataAttribute}  className="uk-flex-center" uk-grid></Sort>
           </div>
-        </form>
+          <div className="available-data-properties uk-padding">
+            <Sort group="sort-group">
+              {this.state.incomingAttributes.map((inAttr, index) => {
+                return (
+                  <div className="uk-card uk-card-default uk-card-body uk-card-small uk-text-center" key={`sortAttr-${index}`}>{inAttr}</div>
+                )
+              })}
+            </Sort>
+          </div>
+
+          <div className="uk-margin">
+              <div className="uk-form-control">
+                <button
+                  className="uk-button uk-button-large uk-button-secondary"
+                  type="button"
+                  onClick={this.sendMappedAttributes}
+                >
+                  Preview
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )
     } else {
       return (<span></span>)
@@ -414,12 +443,13 @@ class Upload extends Component {
   }
 
   renderSaveButton() {
-    if (this.state.layerTitle) {
+    if (this.state.geojson) {
       return (
         <div className="uk-margin">
           <button
             className="uk-button uk-button-large uk-button-primary"
             type="button"
+            disabled={this.state.layerTitle == ''}
             onClick={this.uploadFinal}
           >
             Save

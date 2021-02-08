@@ -15,6 +15,7 @@ class Preview extends Component {
       bounds: null
     }
 
+    this.previewRef = React.createRef();
     this.mapRef = React.createRef();
     this.layerRef = React.createRef();
     this.onEachFeature = this.onEachFeature.bind(this);
@@ -22,11 +23,27 @@ class Preview extends Component {
 
   }
 
+  componentDidMount() {
+    if (this.mapRef.current) {
+      this.previewRef.current.scrollIntoView();
+    }
+  }
+
   onEachFeature(feature: Object, layer: Object) {
     let content = '<table class="uk-table">';
     Object.keys(this.props.mappedAttributes).forEach(attr => {
+      if (attr == 'break') {
+        content += `<tr><td>Break Property</td><td>${this.props.mappedAttributes[attr]}: ${feature.properties[this.props.mappedAttributes[attr]]}</td></tr>`;
+      }
       if (feature.properties[attr]) {
-        content += `<tr><td>${attr}</td><td>${feature.properties[attr]}</td></tr>`;
+        if (attr == 'dataAttributes') {
+          Object.keys(feature.properties.dataAttributes).forEach(datum => {
+            console.log("🚀 ~ file: Preview.js ~ line 31 ~ Preview ~ Object.keys ~ datum", datum)
+            content += `<tr><td>${datum}</td><td>${feature.properties.dataAttributes[datum]}</td></tr>`;
+          })
+        } else {
+          content += `<tr><td>${attr}</td><td>${feature.properties[attr]}</td></tr>`;
+        }
       }
     });
     content += '</table>';
@@ -52,17 +69,19 @@ class Preview extends Component {
   render() {
     const position = [this.state.lat, this.state.lng]
     return (
-      <Map
-        center={position}
-        zoom={this.state.zoom}
-        ref={this.mapRef}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
-        />
-        {this.renderLayer()}
-    </Map>
+      <div ref={this.previewRef}>
+        <Map
+          center={position}
+          zoom={this.state.zoom}
+          ref={this.mapRef}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
+          />
+          {this.renderLayer()}
+        </Map>
+      </div>
     );
   }
 
