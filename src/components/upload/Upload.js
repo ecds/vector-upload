@@ -6,12 +6,15 @@ import htmlToDraft from 'html-to-draftjs';
 import Dropzone from '../dropzone/Dropzone';
 import Progress from '../progress/Progress';
 import Preview from '../preview/Preview';
+import SetColors from '../set-colors/SetColors';
 import Sort from '../sort/Sort';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner, faTemperatureHigh } from '@fortawesome/free-solid-svg-icons';
 import { Alert } from 'uikit-react';
 import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 import './Upload.css';
+import { map } from 'leaflet';
+import chroma from 'chroma-js';
 
 class Upload extends Component {
   constructor(props) {
@@ -24,16 +27,22 @@ class Upload extends Component {
       uploading: false,
       uploadProgress: {},
       successfulUploaded: false,
-      standardAttributes: ['title', 'description', 'images', 'video', 'break', 'longitude', 'latitude'],
+      standardAttributes: ['title', 'description', 'images', 'video', 'longitude', 'latitude', 'break'],
       mappedAttributes: {
         title: null,
         images: null,
         video: null,
         description: null,
-        dataAttributes: []
+        dataAttributes: [],
+        colorMap: null,
+        break: null
       },
+      steps: 5,
+      brew: 'Blues',
       incomingAttributes: null,
       geojson: null,
+      featureData: null,
+      isQuantitative: false,
       error: null,
       success: null
     };
@@ -49,6 +58,7 @@ class Upload extends Component {
     this.clearAlert = this.clearAlert.bind(this);
     this.updateLayerTitle = this.updateLayerTitle.bind(this);
     this.updateDescription = this.updateDescription.bind(this);
+    this.updateColor = this.updateColor.bind(this);
     this.addDataAttribute = this.addDataAttribute.bind(this);
 
     this.attributeSelectRef = React.createRef();
@@ -77,7 +87,6 @@ class Upload extends Component {
       );
       if (response.ok) {
         let data = await response.json();
-        console.log("Upload -> fetchFromUrl -> data", data)
         const file = new Blob([JSON.stringify(data)]);
         this.setState({ file });
         await this.uploadFileToParse();
@@ -106,7 +115,8 @@ class Upload extends Component {
       if (response.ok) {
         let data = await response.json();
         this.setState({
-          incomingAttributes: data.attributes
+          incomingAttributes: data.attributes,
+          featureData: data.data
         });
       } else {
         let error= await response.json();
@@ -212,8 +222,36 @@ class Upload extends Component {
   }
 
   onAttributeSelected(event) {
+    this.setState({ error: null });
     let mappedAttributes = {...this.state.mappedAttributes};
-    mappedAttributes[event.target.labels[0].innerHTML] = event.target.value;
+    const attribute = event.target.labels[0].innerHTML;
+    mappedAttributes[attribute] = event.target.value;
+
+    if (attribute == 'break') {
+      mappedAttributes.colorMap = null;
+      mappedAttributes.break = event.target.value;
+      mappedAttributes.colorMap = {};
+      const values = this.state.featureData.map(p => p.properties[event.target.value]);
+
+      if (values.every(n => isNaN(n))) {
+        this.setState({ isQuantitative: false });
+        [...new Set(values)].sort().map(value => {
+          mappedAttributes.colorMap[value] = {
+            color: chroma.random().hex()
+          };
+        });
+
+        this.setState({ mappedAttributes });
+      } else if (values.every(n => isFinite(n))) {
+        this.setState({ isQuantitative: true });
+        mappedAttributes.colorMap.brew = this.state.brew;
+        mappedAttributes.colorMap.steps = this.state.steps;
+      } else {
+        mappedAttributes.colorMap = null;
+        this.setState({ error: 'Values are either a mix of qualitative and quantitative and/or some are missing.'})
+      }
+    }
+
     this.setState({ mappedAttributes });
   }
 
@@ -235,12 +273,26 @@ class Upload extends Component {
     this.setState({
       layerDescription: draftToHtml(convertToRaw(editorState.getCurrentContent())),
       editorState
-    })
+    });
+  }
+
+  updateColor(event) {
+    console.log("🚀 ~ file: Upload.js ~ line 276 ~ Upload ~ updateColor ~ event", event.target)
+    let mappedAttributes = {...this.state.mappedAttributes};
+    if (event.target.type == 'radio') {
+      mappedAttributes.colorMap.brew = event.target.value;
+      this.setState({ brew: event.target.value });
+    } else if (event.target.id == 'steps') {
+      mappedAttributes.colorMap.steps = event.target.value;
+      this.setState({ steps: event.target.value });
+    } else {
+      mappedAttributes.colorMap[event.target.labels[0].innerText] = { color: event.target.value };
+    }
+    this.setState({ mappedAttributes });
   }
 
   addDataAttribute(event) {
     const elements = [...event.target.children];
-    console.log("🚀 ~ file: Upload.js ~ line 246 ~ Upload ~ addDataAttribute ~ elements.flatMap(item => [item.innText]", elements.flatMap(item => [item.innerText]))
     let mappedAttributes = {...this.state.mappedAttributes};
     mappedAttributes.dataAttributes = null
     mappedAttributes.dataAttributes = elements.flatMap(item => [item.innerText]);
@@ -371,19 +423,21 @@ class Upload extends Component {
               )
             })}
 
-          <h3>Drag and sort data properties for display.</h3>
-          <div className="add-data-property">
-            <Sort group="sort-group" onAdded={this.addDataAttribute} onRemoved={this.addDataAttribute} onMoved={this.addDataAttribute}  className="uk-flex-center" uk-grid></Sort>
-          </div>
-          <div className="available-data-properties uk-padding">
-            <Sort group="sort-group">
-              {this.state.incomingAttributes.map((inAttr, index) => {
-                return (
-                  <div className="uk-card uk-card-default uk-card-body uk-card-small uk-text-center" key={`sortAttr-${index}`}>{inAttr}</div>
-                )
-              })}
-            </Sort>
-          </div>
+            {this.renderSetColors()}
+
+            <h3>Drag and sort data properties for display.</h3>
+            <div className="add-data-property">
+              <Sort group="sort-group" onAdded={this.addDataAttribute} onRemoved={this.addDataAttribute} onMoved={this.addDataAttribute}  className="uk-flex-center" uk-grid></Sort>
+            </div>
+            <div className="available-data-properties uk-padding">
+              <Sort group="sort-group">
+                {this.state.incomingAttributes.map((inAttr, index) => {
+                  return (
+                    <div className="uk-card uk-card-default uk-card-body uk-card-small uk-text-center" key={`sortAttr-${index}`}>{inAttr}</div>
+                  )
+                })}
+              </Sort>
+            </div>
 
           <div className="uk-margin">
               <div className="uk-form-control">
@@ -401,6 +455,24 @@ class Upload extends Component {
       )
     } else {
       return (<span></span>)
+    }
+  }
+
+  renderSetColors() {
+    if (this.state.mappedAttributes.colorMap) {
+      return (
+        <SetColors
+          values={this.state.mappedAttributes.colorMap}
+          updateColor={this.updateColor}
+          isQuantitative={this.state.isQuantitative}
+          steps={this.state.steps}
+          brew={this.state.brew}
+        />
+      );
+    } else {
+      return (
+        <span></span>
+      );
     }
   }
 
@@ -436,7 +508,7 @@ class Upload extends Component {
               />
             </div>
           </div>
-          <Preview data={this.state.geojson} mappedAttributes={this.state.mappedAttributes}/>
+          <Preview data={this.state.geojson} mappedAttributes={this.state.mappedAttributes} isQuantitative={this.state.isQuantitative} />
         </div>
       )
     }

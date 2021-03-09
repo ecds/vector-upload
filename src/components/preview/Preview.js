@@ -2,7 +2,9 @@
 
 import React, { Component } from 'react'
 import { Map, TileLayer, GeoJSON } from 'react-leaflet'
-import Choropleth from 'react-leaflet-choropleth'
+import L from 'leaflet';
+import { library, icon as faIcon } from '@fortawesome/fontawesome-svg-core';
+import { faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
 import './Preview.css';
 
 class Preview extends Component {
@@ -19,6 +21,7 @@ class Preview extends Component {
     this.mapRef = React.createRef();
     this.layerRef = React.createRef();
     this.onEachFeature = this.onEachFeature.bind(this);
+    this.setIcon = this.setIcon.bind(this);
     this.onAdd = this.onAdd.bind(this);
 
   }
@@ -38,7 +41,6 @@ class Preview extends Component {
       if (feature.properties[attr]) {
         if (attr == 'dataAttributes') {
           Object.keys(feature.properties.dataAttributes).forEach(datum => {
-            console.log("🚀 ~ file: Preview.js ~ line 31 ~ Preview ~ Object.keys ~ datum", datum)
             content += `<tr><td>${datum}</td><td>${feature.properties.dataAttributes[datum]}</td></tr>`;
           })
         } else {
@@ -48,6 +50,19 @@ class Preview extends Component {
     });
     content += '</table>';
     layer.bindPopup(content, { maxWidth: 800 });
+  }
+
+  setIcon(geoJsonPoint, latlng) {
+    library.add(faMapMarkerAlt);
+    if (!geoJsonPoint.properties.color) {
+      geoJsonPoint.properties.color = 'deeppink';
+    }
+    const marker = L.marker(latlng)
+    const markerIcon = faIcon({ prefix: 'fas', iconName: 'map-marker-alt' });
+    const html = `<span style="color: ${geoJsonPoint.properties.color}; font-size: 5rem;">${markerIcon.html[0]}</span>`;
+    const newIcon = L.divIcon({ html, className: 'atlm-marker-icon' });
+    marker.setIcon(newIcon);
+    return marker;
   }
 
   onAdd() {
@@ -64,6 +79,15 @@ class Preview extends Component {
         }
       );
     }
+  }
+
+  setStyle(feature) {
+    return {
+      fillColor: feature.properties.color,
+      color: feature.properties.color,
+      weight: 1,
+      fillOpacity: .8
+    };
   }
 
   render() {
@@ -86,27 +110,29 @@ class Preview extends Component {
   }
 
   renderLayer() {
-    if (this.props.data.breakProperty) {
-      return (
-        <Choropleth
-          data={this.props.data}
-          valueProperty={feature => feature.properties[this.props.data.breakProperty]}
-          steps={5}
-          scale={['white', 'red']}
-          mode="q"
-          style={{ color: "#fff", weight: 2, fillOpacity: .8, fillColor: 'red' }}
-          onEachFeature={this.onEachFeature}
-          onAdd={this.onAdd}
-          ref={this.layerRef}
-        />
-      );
-    }
+    // if (this.props.data.breakProperty && this.props.isQuantitative) {
+    //   return (
+    //     <Choropleth
+    //       data={this.props.data}
+    //       valueProperty={feature => feature.properties[this.props.data.breakProperty]}
+    //       steps={5}
+    //       scale={['white', 'red']}
+    //       mode="q"
+    //       style={{ color: "#fff", weight: 2, fillOpacity: .8, fillColor: 'red' }}
+    //       onEachFeature={this.onEachFeature}
+    //       onAdd={this.onAdd}
+    //       ref={this.layerRef}
+    //     />
+    //   );
+    // }
     return (
       <GeoJSON
         ref={this.layerRef}
         data={this.props.data}
         onEachFeature={this.onEachFeature}
+        pointToLayer={this.setIcon}
         onAdd={this.onAdd}
+        style={this.setStyle}
       />
     )
   }

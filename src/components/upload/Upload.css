@@ -30,3 +30,9 @@
 .available-data-properties {
   border: 1px solid #111111;
 }
+
+.uk-alert {
+  position: fixed;
+  top: 1rem;
+  width: 66vw;
+}

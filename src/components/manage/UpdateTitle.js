@@ -1,32 +1,49 @@
 import React, { Component } from 'react';
+import { Editor } from 'react-draft-wysiwyg';
+import { EditorState, convertToRaw, ContentState } from 'draft-js';
+import draftToHtml from 'draftjs-to-html';
+import htmlToDraft from 'html-to-draftjs';
 
 class UpdateTitle extends Component {
   constructor(props) {
     super(props);
+    let contentBlock = htmlToDraft('');
+    if (this.props.layer.attributes.description) {
+      contentBlock = htmlToDraft(this.props.layer.attributes.description);
+    }
+    const contentState = ContentState.createFromBlockArray(contentBlock.contentBlocks);
+    const editorState = EditorState.createWithContent(contentState)
     this.state = {
       editing: false,
-      layerTitle: this.props.layer.attributes.title
+      editorState,
+      layerTitle: this.props.layer.attributes.title,
+      layerDescription: this.props.layer.attributes.description
     };
 
-    this.updateLayer = this.updateLayer.bind(this);
+    this.updateLayerTitle = this.updateLayerTitle.bind(this);
+    this.updateLayerDescription = this.updateLayerDescription.bind(this);
     this.toggleEdit = this.toggleEdit.bind(this);
     this.saveLayer = this.saveLayer.bind(this);
   }
 
   toggleEdit() {
-    this.setState({editing: true});
+    this.setState({editing: !this.state.editing});
   }
 
-  updateLayer(event) {
+  updateLayerTitle(event) {
     this.props.layer.attributes.title = event.target.value;
+  }
+
+  updateLayerDescription(editorState) {
+    this.props.layer.attributes.description = draftToHtml(convertToRaw(editorState.getCurrentContent()));
+    this.setState({ editorState });
   }
 
   async saveLayer(event) {
     event.preventDefault();
     const formData = new FormData();
-    formData.append('data', JSON.stringify(this.props.layer))
+    formData.append('data', JSON.stringify(this.props.layer));
     try {
-    console.log("🚀 ~ file: UpdateTitle.js ~ line 29 ~ UpdateTitle ~ saveLayer ~ formData", formData)
       let response = await fetch (
         `${process.env.REACT_APP_API_HOST}/vector-layers/${this.props.layer.id}`,
         {
@@ -62,19 +79,40 @@ class UpdateTitle extends Component {
 
   render() {
     if (this.state.editing) {
+      const { editorState } = this.state;
       return(
-        <form onSubmit={this.saveLayer}>
-          <input
-            className="uk-input"
-            type="text"
-            defaultValue={this.props.layer.attributes.title}
-            onChange={this.updateLayer}
-          />
+        <form class="uk-form-stacked" onSubmit={this.saveLayer}>
+          <div class="uk-margin">
+            <label class="uk-form-label" for={`title-for-${this.props.layer.id}`}>Title</label>
+            <div class="uk-form-controls">
+              <input
+                className="uk-input"
+                type="text"
+                defaultValue={this.props.layer.attributes.title}
+                onChange={this.updateLayerTitle}
+              />
+            </div>
+          </div>
+          <div class="uk-margin">
+            <label class="uk-form-label" for={`description-for-${this.props.layer.id}`}>Description</label>
+            <Editor
+              editorState={editorState}
+              onEditorStateChange={this.updateLayerDescription}
+              editorClassName="editor"
+            />
+          </div>
           <input
             className="uk-button uk-button-large uk-button-primary"
             type="submit"
             value="save"
           />
+          <button
+            className="uk-button uk-button-large uk-button-default"
+            type="button"
+            onClick={this.toggleEdit}
+          >
+            cancel
+          </button>
         </form>
       )
     } else {

@@ -3,3 +3,10 @@
   width: 100%;
   margin: 0 auto;
 }
+
+.atlm-marker-icon {
+  border: none;
+  font-size: 2.5rem;
+  height: 2.5rem !important;
+  width: 1.5rem !important;
+}
